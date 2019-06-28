@@ -1,0 +1,138 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Creating an SNS topic",
+  "Parameters":{
+    "Scriptbucket":{
+	"Type":"String"
+    }
+  },
+
+  "Resources": {
+    "SNSTopic":{
+      "TYpe": "AWS::SNS::Topic",
+      "Properties":{
+	"TopicName": "HelloWorldEmail"
+       }
+
+    },
+   "MySubcription": {
+     "DependsOn": "SNSTopic",
+     "Type": "AWS::SNS::Subcription",
+     "Properties": {
+         "Endpoint": "anisha.gharat@quantiphi.com",
+          "Protocol": "email",
+          "TopicArn": {
+		"Ref": "SNSTopic"
+	   } 
+      }
+   },
+
+   "LambdaRole":{
+      "Type": "AWS::IAM:Role",
+      "Properties":{
+           "AssumeRolePolicyDocument":{
+	     "Version": "2012-10-17",
+             "Statement": [
+               {
+                "Effect": "Allow",
+                "Principal": {
+                   "Service": [
+                      "lambda.amazonaws.com"
+                     ]
+                  },
+                  "Action": [
+                     "sts:AssumeRole"
+                   ] 
+                   
+                 }
+  	       ]
+             },
+             "Path": "/"
+	   }
+
+      },
+
+   "LambdaRolePolicies": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+      "PolicyName": "LambdaSnsPolicy",
+      "PolicyDocument":{
+	"Statement": [{
+          "Effect": "Allow",
+          "Action": [
+            "sns:*"
+                ],
+           "Resource": "*"
+          }]
+        },
+        "Roles": [{ "Ref": "LambdaRole" }]
+    }
+  },
+  
+
+   "HelloWorldMessage": {
+     "Type": "AWS::Lambda::Function",
+     "DependsOn": ["SNSTopic","LambdaRole"],
+     "Properties": {
+         "Handler": "notifier.lambda_handler",
+         "Role": {"Fn::GetAtt":
+          ["LambdaRole","Arn"]
+	},
+         "Code": {
+             "S3Bucket":{"Ref":"Scriptbucket"},
+	     "S3Key": "subscription.zip"
+	},
+	"Runtime": "python3.7",
+	"Timeout": 100,
+        "Environment":{
+          "Variables":{
+             "TopicArn": {"Ref" : "SNSTopic"}
+            }
+           }
+    },
+   "MyEventsRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+          "Description": "To trigger lambda everyday at 10am",
+          "RoleArn": {
+             "Fn::GetAtt": [
+                
+	      ]
+           },
+	"ScheduleExpression": "cron(0 10 * * * *)",
+        "State": "ENABLED",
+        "DependsOn": ["HelloWorldMessage"],
+        "Targets": [
+	    {
+		"Arn": {
+                  "Fn::GetAtt": [
+                       "HelloWorldMessage", "Arn"
+                   ]
+	     }, 
+                "Input":, 
+                "Id": ""
+	    }
+         ]
+ 
+      }
+
+
+    },
+
+  "InvokeLambda": {
+    "Description": "Permissions for events to invoke lambda function",
+    "Type": "AWS::Lambda::Permission",
+    "Properties": {
+       "FunctionName": {"Ref": "HelloWorldMessage"},
+       "Action": "lambda.InvokeFunction",
+       "Principal": "events.amazonaws.com",
+       "SourceArn": {
+              "Fn::GetAtt": [
+                  "MyEventsRule", "Arn"
+              ]               
+  
+           }
+       }
+  }
+
+}
